@@ -1,0 +1,48 @@
+/******************************************************************************
+* Copyright (c) 2019  Fraunhofer FOKUS
+* All rights reserved. This program and the accompanying materials
+* are made available under the terms of the Eclipse Public License v1.0
+* which accompanies this distribution, and is available at
+* http://www.eclipse.org/legal/epl-v10.html
+*
+* Contributors:
+*     Ilie Daniel Gheorghe Pop
+*     Sascha Hackel
+******************************************************************************/
+
+Package mts_tst_mqtt_broker_performance_load_tps {
+	
+	import all from mts_tst_mqtt_broker_performance_commons;
+
+	Test Purpose {
+    	TP Id TP_MQTT_Performance_Broker_load_001
+
+	    Test objective
+	    "Determine if the IUT(broker) can handle  the given load for a determined period  of time without exceeding the delay threshold within a given acceptable message loss rate."
+	    
+	    Reference
+	    "[MQTT-3.1.2-9], [MQTT-3.1.4-1], [MQTT-3.2.2-6]"
+	      
+	    PICS Selection PICS_BROKER_BASIC and PICS_BROKER_PERFORMANCE and PICS_CLIENT_BASIC
+		Initial conditions
+			with {
+				the IUT entity reach an initial_state
+				}
+	    Expected behaviour
+	    ensure that {
+	        when {
+	        	(.) at time point t1: the tester entity send multiple PUB messages and assure the RATE and
+	        	(!) during the INTERVAL after t1: the IUT entity receive multiple PUB message containing 
+            		topic_name corresponding to TOPIC,
+            		payload corresponding to RETAINED_MESSAGE;
+	        }
+	        then {
+	            (!) INTERVAL after t1 :
+	            	the IUT entity assure and send the PUBACK messages and
+	            	the IUT entity assure the packet_loss_limit and
+	            	the IUT entity assure the DELAY
+	            //the IUT entity reply within limit corresponding PUB ACK messages for PUBLISH message within given packet loss rate and delay limit;
+	        }
+	    }
+	}
+ }

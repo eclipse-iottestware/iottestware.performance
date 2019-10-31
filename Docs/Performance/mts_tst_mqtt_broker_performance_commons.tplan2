@@ -1,0 +1,43 @@
+/******************************************************************************
+* Copyright (c) 2019  Fraunhofer FOKUS
+* All rights reserved. This program and the accompanying materials
+* are made available under the terms of the Eclipse Public License v1.0
+* which accompanies this distribution, and is available at
+* http://www.eclipse.org/legal/epl-v10.html
+*
+* Contributors:
+*     Ilie Daniel Gheorghe Pop
+*     Sascha Hackel
+******************************************************************************/
+
+Package mts_tst_mqtt_broker_performance_commons {
+	Domain {
+		pics:
+		- PICS_BROKER_BASIC
+		- PICS_BROKER_PERFORMANCE
+		- PICS_CLIENT_BASIC
+		;
+		entities:
+		- IUT
+		- tester
+		;
+		events:
+		- send
+		- receive
+		- assure
+		- reach
+		;
+		
+	}
+	Data {
+		type UTF8String;
+		type DURATION;
+		type FREQUENCY;
+		
+		FREQUENCY RATE;
+		DURATION DELAY;
+		DURATION INTERVAL;
+		UTF8String RETAINED_MESSAGE;
+		UTF8String TOPIC;
+	}	 
+}
