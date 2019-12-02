@@ -1,0 +1,651 @@
+/*******************************************************************************
+* Copyright (c) 2019 
+* All rights reserved. This program and the accompanying materials
+* are made available under the terms of the Eclipse Public License v1.0
+* which accompanies this distribution, and is available at
+* http://www.eclipse.org/legal/epl-v10.html
+*
+* Contributors:
+*   Alexander Kaiser
+*   Sascha Kretzschmann
+*   Ilie Daniel Gheorghe Pop
+*******************************************************************************/
+module MQTT_Perf_Functions {
+
+   import from MQTT_Functions all;
+   import from MQTT_Functions_Network all;
+   import from MQTT_Functions_Protocol all;
+   import from MQTT_Functions_Conformance all;
+   import from MQTT_TypesAndValues all;
+   import from MQTT_Functions_SetUp all;
+   import from MQTT_Perf_Pixits all;
+   import from MQTT_Perf_TestSystem all;
+   import from MQTT_TestSystem_Common all;
+   import from MQTT_Perf_TestSystem all;
+   import from MQTT_Templates_CONNACK all;
+   import from MQTT_Templates_CONNECT all;
+   import from MQTT_Templates_MQTTasp all;
+   import from MQTT_Templates_PUBACK all;
+   import from MQTT_Templates_PUBCOMP all;
+   import from MQTT_Templates_PUBLISH all;
+   import from MQTT_Templates_PUBREC all;
+   import from MQTT_Templates_PUBREL all;
+   import from MQTT_Templates_SUBACK all;
+   import from MQTT_Templates_SUBSCRIBE all;
+   import from MQTT_Templates all;
+   import from MQTT_TestSystem_Common all;
+   import from MQTT_v3_1_1_Types all;
+   import from MQTT_v3_1_1_IPL4SizeFunction all;
+
+	import from IPL4asp_PortType all;
+	import from IPL4asp_Types all;
+
+	import from Random_Helper all;
+	import from MQTTasp_PortType all;
+   
+   
+group MqttMTC_FunctionsGroup
+{
+
+  function f_init(in integer p_client_idx := 0) runs on MQTT_Client
+  return boolean
+  {
+    log("Initialize Client  ", p_client_idx);
+
+    var boolean v_initState := true;
+
+    // check if the given client index is valid and if enough PX_CLIENTS are given
+    if(not (p_client_idx >= 0 and p_client_idx < lengthof(PX_CLIENTS)))
+    {
+      setverdict(inconc, "Given Client Index ", p_client_idx, " is invalid")
+      return false
+    }
+
+    ctx.connId := -1;
+    ctx.localHost := "0.0.0.0";
+    ctx.localPort := f_random_port_number();
+
+    credentials := PX_CLIENTS[p_client_idx];
+
+    // check if PIXITS are valid
+    if(not f_check_pixits()) { return false }
+
+    map(self:IPL4_PCO, system:IPL4_PCO);
+
+    var boolean v_connect_state := f_ipl4_connect_sut();
+    var integer v_current_retries := 0;
+
+    // if connection failed wait and retry
+    while (not(v_connect_state) and (v_current_retries < PX_CONNECT_RETRIES)) {
+      v_current_retries := v_current_retries + 1;
+      log("Connection failed: retry ", v_current_retries, " of ", PX_CONNECT_RETRIES, " in ", PX_RETRY_DELAY, "s");
+      f_sleep(PX_RETRY_DELAY);
+      v_connect_state := f_ipl4_connect_sut();
+    }
+    v_initState := v_connect_state;
+
+
+    if (not v_initState) { f_noConnection() }
+
+    return v_initState;
+  }
+
+  function f_ipl4_connect_sut() runs on MQTT_Client
+  return boolean
+  {
+    const boolean c_reuseAddress := true;
+    var boolean v_connectState := true;
+
+    // set the remote Host
+    ctx.remoteHost := PX_SUT_HOSTNAME;
+    ctx.remotePort := PX_SUT_PORT;
+    log("Connect to SUT: ", ctx.remoteHost, ":", ctx.remotePort, " from local Port: ", ctx.localPort);
+
+    var Result vl_result := f_IPL4_connect(IPL4_PCO, ctx.remoteHost, ctx.remotePort, ctx.localHost, ctx.localPort, ctx.connId, {tcp := {}}, {{reuseAddress := {enable := c_reuseAddress}}});
+
+    if (not(ispresent(vl_result.connId)))
+    {
+      ctx.connId := -1;
+      v_connectState := false;
+    } else {
+      var integer v_cid := vl_result.connId
+      var f_IPL4_getMsgLen getMsg_Func := refers(f_GetMsgLengthMQTT);
+      f_IPL4_setGetMsgLen(IPL4_PCO, v_cid, getMsg_Func, {});
+
+      ctx.connId := vl_result.connId;
+    }
+
+    return v_connectState;
+  }
+
+  /*
+  * checks the given PIXITS from .cfg as otherwise faulty values might break some verdicts
+  */
+  private function f_check_pixits() runs on MQTT_Client
+  return boolean {
+    // check if given client ID is valid
+    var UTF8EncodedString v_client_identifier := f_getClientId();
+    if(not f_client_id_valid(v_client_identifier))
+    {
+      log("Check the given Client ID: ", v_client_identifier)
+      setverdict(inconc, "Given Client ID is invalid")
+      return false
+    }
+
+    // check if the given username is valid
+    var UTF8EncodedString v_username := f_getUsername();
+    if(not f_username_valid(v_username))
+    {
+      log("Check the given Username: ", v_username)
+      setverdict(inconc, "Given Username is invalid")
+      return false
+    }
+
+    var UTF8EncodedString v_base_topic := f_getBaseTopicName()
+    if(not f_topic_valid(v_base_topic, true))
+    {
+      log("Check the given Topic: ", v_base_topic)
+      setverdict(inconc, "Given Topic is invalid")
+      return false
+    }
+
+    return true
+  }
+
+  /*
+   * call this function if connection to SUT failed and set verdict of MQTT_Client to inconclusive
+   */
+  private function f_noConnection() runs on MQTT_Client {
+    setverdict(inconc, "Connection to SUT [", ctx.remoteHost, ":", ctx.remotePort, "] not possible")
+  }
+
+  function f_disconnectIPL4() runs on MQTT_Client
+  {
+    var Result vl_result;
+
+    log("Closing connection " & int2str(ctx.connId));
+    if (ctx.connId >= 0)
+    {
+      vl_result := f_IPL4_close(IPL4_PCO, ctx.connId);
+
+      if(ispresent(vl_result.errorCode))
+      {
+        log("ERROR CODE: " & int2str(enum2int(vl_result.errorCode)));
+      }
+      else if(ispresent(vl_result.connId))
+      {
+        log("CONN ID: " & int2str(vl_result.connId));
+      }
+      else if(ispresent(vl_result.os_error_code))
+      {
+        log("OS Error Code: ", vl_result.os_error_code);
+      }
+      else if(ispresent(vl_result.os_error_text))
+      {
+        log("OS Error Text: ", vl_result.os_error_text);
+      }
+    }
+  }
+
+
+
+  function f_cleanUp() runs on MQTT_Client
+  {
+    // disconnect IPL4 connection first
+    f_disconnectIPL4();
+
+    log("Cleanup started");
+
+    unmap(self:IPL4_PCO, system:IPL4_PCO);
+    self.stop;
+  }
+
+  /*
+  * This group contains functions for abstracting valid MQTT Control Packets.
+  * Useful for preconditions...
+  */
+  group MqttControl_FunctionsGroup
+  {
+    function f_connectMqtt(in BIT1n p_cleanSession := '1'B) runs on MQTT_Client
+    return boolean
+    {
+      var boolean v_ret := false;
+
+      var UTF8EncodedString v_clientId := f_getClientId();
+      var UTF8EncodedString v_username := f_getUsername();
+      var OctStringWithLength v_password := f_getPassword();
+
+      var MQTT_v3_1_1_Message v_conMsg := valueof(t_connect_session(v_clientId, v_username, v_password, p_cleanSession));
+      f_send(v_conMsg);
+
+      // wait for CONNACK with return_code := 0
+      var template IPL4_Response v_expected := { receivedMsg :=  tw_connack_return_code(0) };
+      var IPL4_Response v_response := f_receive();
+
+      if(match(v_response, v_expected))
+      {
+        v_ret := true;
+      }
+      else
+      {
+        v_ret := false;
+      }
+
+      return v_ret;
+    }
+
+    function f_disconnectMqtt() runs on MQTT_Client
+    return boolean
+    {
+      var boolean v_ret := false;
+
+      // disconnect
+      f_send(valueof(t_disconnect));
+
+      if(f_receiveNetworkClosedEvent())
+      {
+        v_ret := true;
+      }
+      else
+      {
+        v_ret := false;
+      }
+
+      return v_ret;
+    }
+
+    function f_subscribe(UCHAR0_65535 p_topic_filter, QoS p_requested_qos) runs on MQTT_Client
+    return boolean
+    {
+      var boolean v_ret := false;
+      var integer v_packet_id := float2int(rnd() * 1000.0);
+      var MQTT_v3_1_1_SubscribePayloadList v_sub_payload := { valueof(t_subscribe_payload(p_topic_filter, p_requested_qos)) };
+      var MQTT_v3_1_1_Message v_subscribe := valueof(t_subscribe_topiclist(p_packet_id := v_packet_id, p_topic_list := v_sub_payload));
+
+      f_send(v_subscribe);
+
+      var IPL4_Response v_response := f_receive();
+      var template MQTT_v3_1_1_Message v_suback := tw_suback_packet_id(v_packet_id);
+
+      if(ischosen(v_response.receivedMsg))
+      {
+        if(match(v_response.receivedMsg, v_suback))
+        {
+          v_ret := true;
+        }
+      }
+
+      return v_ret;
+    }
+
+    function f_publish(UCHAR0_65535 p_topic_name, octetstring p_payload, QoS p_qos) runs on MQTT_Client
+    return integer
+    {
+      var template MQTT_v3_1_1_Message v_pub;
+      var integer v_packet_id := f_random_packet_id();
+
+      if(p_qos == AT_MOST_ONCE_DELIVERY)
+      {
+        v_pub := t_publish_base(p_topic_name, p_payload);
+        f_send(valueof(v_pub));
+      }
+      else if(p_qos == AT_LEAST_ONCE_DELIVERY)
+      {
+        v_pub := t_publish_qos(p_topic_name, p_payload, p_qos, v_packet_id);
+        f_publish_qos1(valueof(v_pub));
+      }
+      else if(p_qos == EXACTLY_ONE_DELIVERY)
+      {
+        v_pub := t_publish_qos(p_topic_name, p_payload, p_qos, v_packet_id);
+        f_publish_qos1(valueof(v_pub));
+      }
+      else
+      {
+        // nothing to do here!
+        v_packet_id := -1;
+      }
+
+      return v_packet_id;
+
+    }
+
+
+    private function f_publish_qos1(MQTT_v3_1_1_Message p_pub) runs on MQTT_Client
+    return boolean
+    {
+      var boolean v_ret := true;
+      var IPL4_Response v_response;
+      var integer v_packet_id := p_pub.msg.publish.packet_identifier;
+
+      // send PUBLISH
+      f_send(p_pub);
+
+      // receive PUBACK
+      v_response := f_receive();
+      if(ispresent(v_response.receivedMsg.msg.puback))
+      {
+        if(v_response.receivedMsg.msg.puback.packet_identifier != v_packet_id)
+        {
+          // packet ID in PUBACK was wrong
+          v_ret := false;
+        }
+      }
+
+
+      return v_ret;
+    }
+
+    private function f_publish_qos2(MQTT_v3_1_1_Message p_pub) runs on MQTT_Client
+    return boolean
+    {
+      var boolean v_ret := true;
+      var IPL4_Response v_response;
+      var integer v_packet_id := p_pub.msg.publish.packet_identifier;
+
+      // send PUBLISH
+      f_send(p_pub);
+
+      // receive PUBREC
+      v_response := f_receive();
+      if(ispresent(v_response.receivedMsg.msg.pubrec))
+      {
+        if(v_response.receivedMsg.msg.pubrec.packet_identifier != v_packet_id)
+        {
+          // packet ID in PUBREC was wrong
+          v_ret := false;
+        }
+      }
+      else
+      {
+        // response was not a PUBREC
+        v_ret := false;
+      }
+
+      // send PUBREL
+      if(v_ret)
+      {
+        f_send(valueof(t_pubrel(v_packet_id)));
+
+        // receive PUBCOMP
+        v_response := f_receive();
+        if(ispresent(v_response.receivedMsg.msg.pubcomp))
+        {
+          if(v_response.receivedMsg.msg.pubcomp.packet_identifier != v_packet_id)
+          {
+            // packet ID in PUBCOMP was wrong
+            v_ret := false;
+          }
+        }
+        else
+        {
+          // response was not a PUBCOMP
+          v_ret := false;
+        }
+      }
+
+      return v_ret;
+    }
+  }
+
+  /*
+  * This group contains generic functions wrapping IPL4asp for sending and receiving
+  * all kinds of MQTT Messages
+  */
+  group SendReceive_FunctionsGroup
+  {
+    function f_send(in MQTT_v3_1_1_Message p_msg) runs on MQTT_Client
+    {
+      var octetstring v_encoded := f_MQTT_enc(p_msg);
+      v_encoded := f_adjustLength(f_calcRemLength(v_encoded));
+
+      var ASP_Send vl_send;
+
+      if(ctx.connId > 0)
+      {
+        vl_send.connId := ctx.connId;
+        vl_send.proto := {tcp := {}}
+
+        vl_send.msg := v_encoded;
+
+        IPL4_PCO.send(vl_send);
+      }
+      else
+      {
+        log("send MQTT Message not possible because of connId := " & int2str(ctx.connId));
+      }
+    }
+
+
+    function f_send_negtest(in MQTT_v3_1_1_Message p_msg) runs on MQTT_Client
+    {
+      var octetstring v_encoded := f_enc_mqtt_msg(p_msg);
+      v_encoded := f_adjustLength(f_calcRemLength(v_encoded));
+
+      var ASP_Send vl_send;
+
+      if(ctx.connId > 0)
+      {
+        vl_send.connId := ctx.connId;
+        vl_send.proto := {tcp := {}}
+
+        vl_send.msg := v_encoded;
+
+        IPL4_PCO.send(vl_send);
+      }
+      else
+      {
+        log("send MQTT Message not possible because of connId := " & int2str(ctx.connId));
+      }
+    }
+
+    /*
+    * TODO: check if f_calcRemLength is correct according to MQTT 2.2.3
+    * This function is a workaround: calling f_MQTT_enc(..) seems not to calculate the remLength field
+    */
+    function f_calcRemLength(in octetstring p_os) return octetstring
+    {
+      // cut 1 Byte Packet Type + 4 Byte empty remLength
+      var integer v_remLength := lengthof(p_os) - 5;
+      p_os := replace(p_os, 1, 4, int2oct(v_remLength, 4));
+
+      return p_os;
+    }
+
+    /*
+    this is a blocking function that waits for the response from IPL4_PCO.
+
+    @return IPL4_Response
+    */
+    function f_receive() runs on MQTT_Client
+    return IPL4_Response
+    {
+      timer t_Timeout := PX_MAX_RESPONSE_TIME;
+      if (PX_MAX_RESPONSE_TIME > 0.0) { t_Timeout.start; }
+
+      var ASP_RecvFrom v_ipl4Recv;
+
+      var IPL4_Response v_response;
+
+      alt
+      {
+        [] IPL4_PCO.receive(ASP_RecvFrom:?) -> value v_ipl4Recv
+        {
+          log("Received: ", v_ipl4Recv);
+
+          var MQTT_v3_1_1_Message v_mqttMsg;
+          // v_mqttMsg := f_MQTT_decode(v_ipl4Recv.msg);
+          f_MQTT_v3_1_1_dec(v_ipl4Recv.msg, v_mqttMsg);
+
+          if (ischosen(v_mqttMsg.msg)) {
+            v_response.receivedMsg := v_mqttMsg;
+            log("MQTT PDU: ", v_mqttMsg.msg);
+          }
+          else {
+            // The received data seems to be not decoded??
+            //v_response.receivedMsg := c_MQTTMessage_empty;
+            log("MQTT PDU [raw]:",v_mqttMsg);
+          }
+        }
+        [] IPL4_PCO.receive(ASP_Event:?) -> value v_response.aspEvent
+        {
+          log("Received: ", v_response.aspEvent);
+        }
+        [] t_Timeout.timeout
+        {
+          v_response.timeoutEvent := PX_MAX_RESPONSE_TIME;
+          log("Timeout while waiting for Message");
+        }
+      }
+      return v_response;
+    }
+
+    function f_receiveNetworkClosedEvent() runs on MQTT_Client
+    return boolean
+    {
+      var boolean v_ret := false;
+      var IPL4_Response v_response := f_receive();
+
+      return f_checkNetworkClosedEvent(v_response)
+    }
+
+  function f_checkNetworkClosedEvent(IPL4_Response p_response) runs on MQTT_Client
+    return boolean
+    {
+      var boolean v_ret := false;
+
+      if(ischosen(p_response.aspEvent))
+      {
+        // Note:
+        // connection closed is sometimes signalised with connClosed
+        // and sometimes with Result.ERROR_SOCKET
+        if(ischosen(p_response.aspEvent.connClosed))
+        {
+          v_ret := true;
+          log("NetworkClosed Event connection closed with ", p_response.aspEvent.connClosed);
+        }
+        else if(ischosen(p_response.aspEvent.result))
+        {
+          v_ret := true;
+          log("NetworkClosed Event connection closed with ", p_response.aspEvent.result)
+        }
+      }
+      else
+      {
+        v_ret := false;
+      }
+
+      return v_ret;
+    }
+  }
+
+  group GetterSetter_FunctionsGroup
+  {
+    function f_getContext() runs on MQTT_Client
+    return MqttClientContext
+    {
+      return ctx;
+    }
+
+    function f_setContext(in MqttClientContext p_ctx) runs on MQTT_Client
+    {
+      ctx := p_ctx;
+    }
+
+    function f_getCredentials() runs on MQTT_Client
+    return MqttClientCredentials
+    {
+      return credentials;
+    }
+
+    function f_setCredentials(in MqttClientCredentials p_credentials) runs on MQTT_Client
+    {
+      credentials := p_credentials;
+    }
+
+    function f_getClientId() runs on MQTT_Client
+    return UTF8EncodedString
+    {
+      return { stringLength := lengthof(credentials.clientId), stringItem := credentials.clientId };
+    }
+
+    function f_getUsername() runs on MQTT_Client
+    return UTF8EncodedString
+    {
+      return { stringLength := lengthof(credentials.username), stringItem := credentials.username };
+    }
+
+    function f_getPassword() runs on MQTT_Client
+    return OctStringWithLength
+    {
+      return { stringLength := lengthof(credentials.password), stringItem := unichar2oct(credentials.password) };
+    }
+
+    function f_getBaseTopicName() runs on MQTT_Client
+    return UTF8EncodedString
+    {
+      return { stringLength := lengthof(PX_TOPIC_NAME), stringItem := PX_TOPIC_NAME };
+    }
+
+    function f_getConcatenatedTopicName(UCHAR0_65535 p_appendix) runs on MQTT_Client
+    return UTF8EncodedString
+    {
+      // TODO: check the ending of base topic name for a slash
+      // TODO: check the beginning of p_appendix for a slash
+      return { stringLength := lengthof(PX_TOPIC_NAME & p_appendix), stringItem := PX_TOPIC_NAME & p_appendix };
+    }
+  }
+}
+
+/*
+* This group contains commonly used utility functions
+*/
+group Common_FunctionsGroup {
+  function f_sleep(in float p_time)
+  {
+    timer T_busywait := p_time;
+    T_busywait.start;
+    T_busywait.timeout;
+  }
+
+  // this function is taken from the example given in https://www.eclipse.org/forums/index.php/t/1085007/
+  function f_isRunningGuard(in MQTT_Client p_comp, in float p_timeout := 10.0)
+  {
+    timer T_wait;
+    if(p_comp.running)
+    {
+      T_wait.start(p_timeout);
+      log("runningGuard "
+        & ": waiting for function to stop executing on component "
+        & log2str(p_comp) & ", timeout in "
+        & log2str(p_timeout) & " seconds.");
+      alt
+      {
+        [] p_comp.done
+        {
+          log("runningGuard "
+            & ": component " & log2str(p_comp)
+            & " returned done properly after waiting for "
+            & log2str(T_wait.read) & " seconds.");
+        }
+        [] T_wait.timeout
+        {
+          log("runningGuard "
+            & ": Stopping function running on component " & log2str(p_comp)
+            & " due to timeout.");
+          p_comp.stop;
+        }
+        [else]
+        {
+          // busy loop to ensure no default altsteps are executed and
+          // unexpectedly ends our alt-statement by not calling 'repeat'
+          // correctly.
+          // v_dummy exists only to avoid busy-loop warning during compilation
+          var integer v_dummy;
+          repeat;
+        }
+      }
+    }
+  }
+}
+
+}
