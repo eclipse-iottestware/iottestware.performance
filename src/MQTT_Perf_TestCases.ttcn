@@ -51,7 +51,8 @@ group pingrespGroup {
   }
     testcase TC_MQTT_PERF_BROKER_PINGRESP_002() runs on MQTT_Client
   {
-    log("test log:b4 init");
+    //log("test log:b4 init");
+    
     if(f_init())
     {
       //    log("test log: entered if");
@@ -61,7 +62,7 @@ group pingrespGroup {
       f_TC_MQTT_PERF_BROKER_PINGRESP_002();
       }
       //    log("test log: after pings");
-      //setverdict(pass, "IUT answered correctly to PINGREQ with PINGRESP and duration ");
+      setverdict(pass, "IUT answered correctly to PINGREQ with PINGRESP and duration ");
       f_disconnectMqtt();
       //    log("test log: after disconnect");
     }

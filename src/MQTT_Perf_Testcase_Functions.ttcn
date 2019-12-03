@@ -103,7 +103,7 @@ group pingrespFunctionsGroup
     {
     //    setverdict(fail, "IUT answered incorrectly with ", v_response);
     log("ping reply incorrect");
-    
+    return ping_duration;
     }
   }
   
