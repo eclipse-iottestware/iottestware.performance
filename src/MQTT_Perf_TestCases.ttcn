@@ -29,6 +29,8 @@ import from MQTT_TestSystem_Common all;
 import from MQTT_TypesAndValues_Common all;
 import from MQTT_Functions_SetUp all;
 import from MQTT_Functions_Network all;
+import from Perf_TestScheduler all;
+
 
 // MQTT 3.1.1 Protocol Modules
 import from MQTT_v3_1_1_Types all;
@@ -52,20 +54,43 @@ group pingrespGroup {
     testcase TC_MQTT_PERF_BROKER_PINGRESP_002() runs on MQTT_Client
   {
     //log("test log:b4 init");
-    
+    var float benchmark_duration:=0.0;
+    var float total_duration:=0.0;
+    var integer iterations:=PX_NUM_REQUESTS;
+    var float crt_op_delay:=0.0;
+    var float average_delay:=0.0;
+    var float op_delay:=1000.0/PX_RATE;
+    var float exec_delay:=0.0;
+    timer t_experiment_timer:=op_delay*int2float(iterations);
+    t_experiment_timer.start;
     if(f_init())
     {
       //    log("test log: entered if");
       f_connectMqtt();
       //    log("test log: passed connect");
-      for (var integer i:=0; i<100; i:=i+1){
-      f_TC_MQTT_PERF_BROKER_PINGRESP_002();
-      }
+      for (var integer i:=0; i<iterations;i:=i+1){
+		crt_op_delay:=f_TC_MQTT_PERF_BROKER_PINGRESP_002();
+      	total_duration:=total_duration+ crt_op_delay;
+      //	setverdict(pass, "crt_op_delay ",crt_op_delay, " ms op delay ", op_delay, "before sleep, iteration ", i );
+      	if(crt_op_delay<op_delay){
+      		f_sleep((op_delay-crt_op_delay)/1000.0);
+      	}
       //    log("test log: after pings");
-      setverdict(pass, "IUT answered correctly to PINGREQ with PINGRESP and duration ");
+      }
+      // Calculate duration of benchmark in seconds
+      benchmark_duration:=t_experiment_timer.read;
+      average_delay:= total_duration / int2float(iterations);
+      if(average_delay<1.0){
+      setverdict(pass, "IUT answered correctly to PINGREQ with PINGRESP and average duration ",average_delay, "ms over ", iterations, "iterations. Benchmark duration ", benchmark_duration, " seconds" );
+      }
+      else{
+        setverdict(fail, "IUT answered correctly to PINGREQ with PINGRESP and average duration " ,average_delay, "ms over ", iterations, "iterations");
+      }
+      
       f_disconnectMqtt();
       //    log("test log: after disconnect");
     }
+    
     f_cleanUp();
   }
 } // pingrespGroup

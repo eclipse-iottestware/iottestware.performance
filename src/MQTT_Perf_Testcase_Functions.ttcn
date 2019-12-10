@@ -74,7 +74,7 @@ group pingrespFunctionsGroup
 
     f_disconnectMqtt();
   }
-  function f_TC_MQTT_PERF_BROKER_PINGRESP_002() runs on MQTT_Client
+  function f_TC_MQTT_PERF_BROKER_PINGRESP_002() runs on MQTT_Client return float
   {
     
 	var float ping_duration:=0.0;
@@ -87,7 +87,7 @@ group pingrespFunctionsGroup
 	ping_duration:=t_ping_timer.read;
     if(match(v_response, v_expected))
    	{
-   	 if(ping_duration*1000.0<1.0)
+   	 if(ping_duration*1000.0<PX_MAX_RESPONSE_TIME)
        {
     //    	setverdict(pass, "IUT answered correctly to PINGREQ with PINGRESP and duration " ,ping_duration*1000.0, "ms");
        log("ping sent within limit");
@@ -103,8 +103,8 @@ group pingrespFunctionsGroup
     {
     //    setverdict(fail, "IUT answered incorrectly with ", v_response);
     log("ping reply incorrect");
-    return ping_duration;
     }
+    return (ping_duration* 1000.0);
   }
   
 } // pingrespFunctionsGroup
