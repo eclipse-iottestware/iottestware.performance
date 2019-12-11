@@ -12,7 +12,7 @@ module Perf_TestScheduler{
 import from MQTT_Perf_Pixits all;
 group executingFunctionsGroup
 {
-  
+  type float ReturnFloat with  {extension "done"};
   function f_MQTT_RATE_EXECUTION() 
   {
     

@@ -35,10 +35,11 @@ import from MQTT_Templates_SUBSCRIBE all;
 import from MQTT_Templates_SUBACK all;
 import from MQTT_Templates_UNSUBSCRIBE all;
 import from MQTT_Templates_UNSUBACK all;
-
-
+import from Perf_TestScheduler all;
+import from MQTT_Perf_Functions all;
 import from Random_Helper all;
 import from UTF8_Helper all;
+import from TCCDateTime_Functions all;
 
 import from MQTT_v3_1_1_Types all;
 
@@ -108,6 +109,102 @@ group pingrespFunctionsGroup
   }
   
 } // pingrespFunctionsGroup
+
+group pubsubFunctionsGroup{
+  function f_TC_MQTT_PERF_BROKER_PUBACK_002() runs on MQTT_Client_MTC return float
+  {
+    
+	var float pub_duration:=0.0;
+    var integer v_pid_1 := f_random_packet_id()
+    var integer v_pid_2 := f_random_packet_id()
+    var UTF8EncodedString v_topic_name:= f_utf8_from_charstring(PX_TOPIC_NAME)
+    var octetstring v_payload := 'A0A0'O;
+
+    var template MQTT_v3_1_1_PublishHeader v_header_1 := t_publish_header(-, AT_LEAST_ONCE_DELIVERY, -)
+    var template MQTT_v3_1_1_PublishHeader v_header_2 := t_publish_header(-, AT_LEAST_ONCE_DELIVERY, -)
+    var template MQTT_v3_1_1_Publish v_publish_1 := t_publish_packet(valueof(v_header_1), v_pid_1, v_topic_name, v_payload)
+    var template MQTT_v3_1_1_Publish v_publish_2 := t_publish_packet(valueof(v_header_2), v_pid_2, v_topic_name, v_payload)
+
+    var template MQTTasp_Message v_expected_puback_1 := mw_mqtt_message(mw_puback_packet_id(v_pid_1));
+    var template MQTTasp_Message v_expected_puback_2 := mw_mqtt_message(mw_puback_packet_id(v_pid_2));
+    var MQTTasp_Message v_received;
+
+    timer t_timeout := PX_MAX_RESPONSE_TIME;
+    t_timeout.start
+
+    f_mqtt_client_send_publish(valueof(v_publish_1))
+    f_mqtt_client_send_publish(valueof(v_publish_2))
+
+    alt {
+      [] MQTT_PCO.receive(v_expected_puback_1) {
+        alt {
+          [] MQTT_PCO.receive(v_expected_puback_2) {
+         //   setverdict(pass, "Received PUBACK messages in correct order")
+            pub_duration:=t_timeout.read;
+            break
+          }
+          [] MQTT_PCO.receive(mw_mqtt_message(mw_puback)) -> value v_received {
+            setverdict(fail, "Received second PUBACK message with wrong packet ID ", v_received.msg.msg.puback.packet_identifier)
+          }
+        }
+        break
+      }
+      [] MQTT_PCO.receive(mw_mqtt_message(mw_puback)) -> value v_received {
+        setverdict(fail, "Received out of order PUBACK message with ID ", v_received.msg.msg.puback.packet_identifier)
+        break
+      }
+      [] MQTT_PCO.receive(MQTTasp_Message : ?) -> value v_received {
+        setverdict(fail, "Received unexpected message: ", v_received)
+        break
+      }
+      [] t_timeout.timeout {
+        setverdict(fail, "Time out without PUBACK")
+        break
+      }
+    }
+	return pub_duration*1000.0
+  }
+  
+   function f_TC_MQTT_PERF_BROKER_FEAT_PUBSUB_001(MQTT_Client_MTC p_publisher, MQTT_Client_MTC p_subscriber) runs on MQTT_Client_MTC system MQTT_Client_TestSystem return float
+  {
+
+
+    
+	var float pubsub_duration:=0.0;
+    var integer v_pid_1 := f_random_packet_id()
+    var integer v_pid_2 := f_random_packet_id()
+    var octetstring v_pl_1 := 'AAAA'O
+    var octetstring v_pl_2 := 'BBBB'O
+    var template MQTT_v3_1_1_PublishHeader v_header_1 := t_publish_header(-, AT_MOST_ONCE_DELIVERY, -)
+	var UTF8EncodedString v_topic_name:= f_utf8_from_charstring(PX_TOPIC_NAME)
+	var template MQTT_v3_1_1_Publish v_publish_1 := t_publish_packet(valueof(v_header_1), v_pid_1, v_topic_name, v_pl_1)
+	
+	
+	{
+	timer t_timer1 := PX_MAX_RESPONSE_TIME;
+   
+   
+     t_timer1.start
+    
+    
+    // start listening for published messages
+    p_subscriber.start(f_mqtt_receive_publish_timed(mw_publish_all.msg.publish))    
+    // send PACKET_ID_1
+    p_publisher.start(f_mqtt_send_publish(valueof(v_publish_1)))
+    var integer crt_time := f_time_ms();
+	var ReturnFloat my_var := 0.0;
+	p_subscriber.done(ReturnFloat :?) -> value my_var; 
+	pubsub_duration := my_var-int2float(crt_time)
+	
+    p_publisher.done
+  }
+  
+  return pubsub_duration
+  
+  }
+  
+  
+}
 
 group disconnectFunctionsGroup
 {
@@ -528,20 +625,7 @@ group protocolFeaturesFunctionsGroup
     all component.done;
   }
 
-  function f_TC_MQTT_PERF_BROKER_FEAT_PUBSUB_001(MQTT_Client_MTC p_publisher, MQTT_Client_MTC p_subscriber) runs on MQTT_Client_MTC system MQTT_Client_TestSystem
-  {
-    p_publisher.start(f_mqtt_connect_valid())
-    p_subscriber.start(f_mqtt_connect_valid())
-    all component.done;
 
-    p_subscriber.start(f_mqtt_subscribe(AT_MOST_ONCE_DELIVERY))
-    p_subscriber.done;
-
-    /* expected bahaviour */
-    p_publisher.start(f_send_publish_zwnbs_01())
-    p_subscriber.start(f_mqtt_receive_no_publish())
-    all component.done;
-  }
 
   function f_TC_MQTT_PERF_BROKER_FEAT_PUBSUB_002(MQTT_Client_MTC p_publisher, MQTT_Client_MTC p_subscriber) runs on MQTT_Client_MTC system MQTT_Client_TestSystem
   {
