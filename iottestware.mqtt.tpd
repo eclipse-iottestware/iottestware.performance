@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<TITAN_Project_File_Information version="1.0">
+  <ProjectName>iottestware.mqtt</ProjectName>
+  <ReferencedProjects>
+    <ReferencedProject name="IPL4asp_CNL113531" projectLocationURI="../../TestPorts/IPL4asp/IPL4asp_CNL113531.tpd"/>
+    <ReferencedProject name="MQTT_v3.1.1_CNL113831" projectLocationURI="../../ProtocolModules/MQTT/MQTT_v3.1.1_CNL113831.tpd"/>
+    <ReferencedProject name="iottestware.mqtt" projectLocationURI="../iottestware.mqtt/iottestware.mqtt.tpd"/>
+    <ReferencedProject name="TCCUsefulFunctions_CNL113472_Common" projectLocationURI="../../Libraries/TCCUsefulFunctions_CNL113472/TCCUsefulFunctions_CNL113472_Common.tpd"/>
+  </ReferencedProjects>
+  <Folders>
+    <FolderResource projectRelativePath="cfg" relativeURI="cfg"/>
+    <FolderResource projectRelativePath="src" relativeURI="src"/>
+  </Folders>
+  <Files>
+  <FileResource projectRelativePath="src/MQTT_Perf_Functions.ttcn" relativeURI="src/MQTT_Perf_Functions.ttcn"/>
+  <FileResource projectRelativePath="src/MQTT_Perf_Pixits.ttcn" relativeURI="src/MQTT_Perf_Pixits.ttcn"/>
+  <FileResource projectRelativePath="src/MQTT_Perf_TestCases.ttcn" relativeURI="src/MQTT_Perf_TestCases.ttcn"/>
+  <FileResource projectRelativePath="src/MQTT_Perf_TestSystem.ttcn" relativeURI="src/MQTT_Perf_TestSystem.ttcn"/>
+  <FileResource projectRelativePath="src/MQTT_Perf_Testcase_Functions.ttcn" relativeURI="src/MQTT_Perf_Testcase_Functions.ttcn"/>
+  <FileResource projectRelativePath="src/Perf_Test_Scheduler.ttcn" relativeURI="src/Perf_Test_Scheduler.ttcn"/>
+  </Files>
+  <ActiveConfiguration>Default</ActiveConfiguration>
+  <Configurations>
+    <Configuration name="Default">
+      <ProjectProperties>
+        <MakefileSettings>
+          <functiontestRuntime>true</functiontestRuntime>
+          <targetExecutable>bin/iottestware.mqtt.perf</targetExecutable>
+        </MakefileSettings>
+        <LocalBuildSettings>
+          <workingDirectory>bin</workingDirectory>
+        </LocalBuildSettings>
+      </ProjectProperties>
+      <FileProperties>
+        <FileResource>
+          <FilePath>CONTRIBUTING.md</FilePath>
+          <FileProperties>
+            <ExcludeFromBuild>true</ExcludeFromBuild>
+          </FileProperties>
+        </FileResource>
+        <FileResource>
+          <FilePath>LICENSE</FilePath>
+          <FileProperties>
+            <ExcludeFromBuild>true</ExcludeFromBuild>
+          </FileProperties>
+        </FileResource>
+        <FileResource>
+          <FilePath>README.md</FilePath>
+          <FileProperties>
+            <ExcludeFromBuild>true</ExcludeFromBuild>
+          </FileProperties>
+        </FileResource>
+       </FileProperties>
+    </Configuration>
+  </Configurations>
+</TITAN_Project_File_Information>

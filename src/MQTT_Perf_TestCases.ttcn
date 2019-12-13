@@ -1,0 +1,186 @@
+/*******************************************************************************
+* Copyright (c) 2019 
+* All rights reserved. This program and the accompanying materials
+* are made available under the terms of the Eclipse Public License v1.0
+* which accompanies this distribution, and is available at
+* http://www.eclipse.org/legal/epl-v10.html
+*
+* Contributors:
+*   Alexander Kaiser
+*   Sascha Kretzschmann
+*   Ilie Daniel Gheorghe Pop
+*******************************************************************************/
+module MQTT_Perf_TestCases {
+
+// old MQTT Broker Testing modules
+import from MQTT_TestSystem all;
+import from MQTT_TypesAndValues all;
+import from MQTT_Functions all;
+import from MQTT_Templates all;
+import from MQTT_Perf_Testcase_Functions all;
+
+// MUST NOT be imported here... refactoring required with config_02
+import from MQTT_Perf_Pixits all;
+import from UTF8_Helper all;
+import from Random_Helper all;
+
+// MQTT TS Framework
+import from MQTT_TestSystem_Common all;
+import from MQTT_TypesAndValues_Common all;
+import from MQTT_Functions_SetUp all;
+import from MQTT_Functions_Network all;
+import from Perf_TestScheduler all;
+import from MQTT_Client_Behaviors all;
+
+
+// MQTT 3.1.1 Protocol Modules
+import from MQTT_v3_1_1_Types all;
+
+
+group pingrespGroup {
+
+  /*
+  * @purpose The IUT accepts only valid fixed header flags for PINGREQ Control Packet and responds with a PINGRESP
+  *
+  * @reference [MQTT-2.2.2-1], [MQTT-3.12.4-1]
+  */
+  testcase TC_MQTT_PERF_BROKER_PINGRESP_001() runs on MQTT_Client
+  {
+    if(f_init())
+    {
+      f_TC_MQTT_PERF_BROKER_PINGRESP_001();
+    }
+    f_cleanUp();
+  }
+    testcase TC_MQTT_PERF_BROKER_PINGRESP_002() runs on MQTT_Client
+  {
+    //log("test log:b4 init");
+    var float benchmark_duration:=0.0;
+    var float total_duration:=0.0;
+    var integer iterations:=PX_NUM_REQUESTS;
+    var float crt_op_delay:=0.0;
+    var float average_delay:=0.0;
+    var float op_delay:=1000.0/PX_RATE;
+    var float exec_delay:=0.0;
+    timer t_experiment_timer:=op_delay*int2float(iterations);
+    t_experiment_timer.start;
+    if(f_init())
+    {
+      //    log("test log: entered if");
+      f_connectMqtt();
+      //    log("test log: passed connect");
+      for (var integer i:=0; i<iterations;i:=i+1){
+		crt_op_delay:=f_TC_MQTT_PERF_BROKER_PINGRESP_002();
+      	total_duration:=total_duration+ crt_op_delay;
+      //	setverdict(pass, "crt_op_delay ",crt_op_delay, " ms op delay ", op_delay, "before sleep, iteration ", i );
+      	if(crt_op_delay<op_delay){
+      		f_sleep((op_delay-crt_op_delay)/1000.0);
+      	}
+      //    log("test log: after pings");
+      }
+      // Calculate duration of benchmark in seconds
+      benchmark_duration:=t_experiment_timer.read;
+      average_delay:= total_duration / int2float(iterations);
+      if(average_delay<PX_MAX_RESPONSE_TIME){
+      setverdict(pass, "IUT answered correctly to PINGREQ with PINGRESP and average duration ",average_delay, "ms over ", iterations, "iterations. Benchmark duration ", benchmark_duration, " seconds" );
+      }
+      else{
+        setverdict(fail, "IUT answered correctly to PINGREQ with PINGRESP and average duration " ,average_delay, "ms over ", iterations, "iterations");
+      }
+      
+      f_disconnectMqtt();
+      //    log("test log: after disconnect");
+    }
+    
+    f_cleanUp();
+  }
+} // pingrespGroup
+
+group PubSubGroup {
+  testcase TC_MQTT_PERF_BROKER_PUBACK_002() runs on MQTT_Client_MTC
+  {
+    var float benchmark_duration:=0.0;
+    var float total_duration:=0.0;
+    var integer iterations:=PX_NUM_REQUESTS;
+    var float crt_op_delay:=0.0;
+    var float average_delay:=0.0;
+    var float op_delay:=1000.0/PX_RATE;
+    var float exec_delay:=0.0;
+    timer t_experiment_timer:=op_delay*int2float(iterations);
+    t_experiment_timer.start;
+    map(self:MQTT_PCO, system:MQTT_PCO)
+
+    if(f_init_client(0))
+    {
+      f_mqtt_connect_valid()
+      for (var integer i:=0; i<iterations;i:=i+1){
+		crt_op_delay:=f_TC_MQTT_PERF_BROKER_PUBACK_002();
+      	total_duration:=total_duration+ crt_op_delay;
+      //	setverdict(pass, "crt_op_delay ",crt_op_delay, " ms op delay ", op_delay, "before sleep, iteration ", i );
+      	if(crt_op_delay<op_delay){
+      		f_sleep((op_delay-crt_op_delay)/1000.0);
+      	}
+      //    log("test log: after pings");
+      }
+      // Calculate duration of benchmark in seconds
+      benchmark_duration:=t_experiment_timer.read;
+      average_delay:= total_duration / int2float(iterations);
+      if(average_delay<PX_MAX_RESPONSE_TIME){
+      setverdict(pass, "IReceived PUBACK messages in correct order and average duration ",average_delay, "ms over ", iterations, "iterations. Benchmark duration ", benchmark_duration, " seconds" );
+      }
+      else{
+        setverdict(fail, "IReceived PUBACK messages in correct order and average duration " ,average_delay, "ms over ", iterations, "iterations");
+      }
+      
+    }
+
+    f_clear_client()
+
+    unmap(self:MQTT_PCO, system:MQTT_PCO)
+  }
+    testcase TC_MQTT_PERF_BROKER_FEAT_PUBSUB_001() runs on MQTT_Client_MTC system MQTT_Client_TestSystem
+  {
+    var MQTT_Client_MTC publisher := MQTT_Client_MTC.create("Publisher") alive;
+    var MQTT_Client_MTC subscriber := MQTT_Client_MTC.create("Subscriber") alive;
+	var float benchmark_duration:=0.0;
+    var float total_duration:=0.0;
+    var integer iterations:=PX_NUM_REQUESTS;
+    var float crt_op_delay:=0.0;
+    var float average_delay:=0.0;
+    var float op_delay:=1000.0/PX_RATE;
+    var float exec_delay:=0.0;
+    timer t_experiment_timer:=op_delay*int2float(iterations);
+    t_experiment_timer.start;
+
+
+    if(f_init_client_system(publisher, subscriber)){
+    /* Initial conditions */
+    publisher.start(f_mqtt_connect_valid())
+    subscriber.start(f_mqtt_connect_valid())
+    all component.done;
+    subscriber.start(f_mqtt_subscribe(AT_MOST_ONCE_DELIVERY))
+    subscriber.done
+    for (var integer i:=0; i<iterations;i:=i+1){
+    	crt_op_delay:=f_TC_MQTT_PERF_BROKER_FEAT_PUBSUB_001(publisher, subscriber)
+    	total_duration:=total_duration+ crt_op_delay;
+    	log("iteration ", i," moving on")
+    	if(crt_op_delay<op_delay){
+    		f_sleep((op_delay-crt_op_delay)/1000.0);
+    	}
+   	}
+    }
+	// Calculate duration of benchmark in seconds
+      benchmark_duration:=t_experiment_timer.read;
+      average_delay:= total_duration / int2float(iterations);
+      if(average_delay<PX_MAX_RESPONSE_TIME*10.0){
+      setverdict(pass, "IReceived PUB messages in with average duration ",average_delay, "ms over ", iterations, "iterations. Benchmark duration ", benchmark_duration, " seconds" );
+      }
+      else{
+        setverdict(fail, "IReceived PUB messages with average duration " ,average_delay, "ms over ", iterations, "iterations");
+      }
+        all component.done;
+    f_clear_client_system(publisher, subscriber)
+  }
+}
+
+}

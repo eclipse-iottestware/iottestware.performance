@@ -1,0 +1,129 @@
+/*******************************************************************************
+* Copyright (c) 2019 
+* All rights reserved. This program and the accompanying materials
+* are made available under the terms of the Eclipse Public License v1.0
+* which accompanies this distribution, and is available at
+* http://www.eclipse.org/legal/epl-v10.html
+*
+* Contributors:
+*   Alexander Kaiser
+*   Sascha Kretzschmann
+*   Ilie Daniel Gheorghe Pop
+*******************************************************************************/
+module MQTT_Perf_Functions {
+
+   import from MQTT_Functions all;
+   import from MQTT_Functions_Network all;
+   import from MQTT_Functions_Protocol all;
+   import from MQTT_Functions_Conformance all;
+   import from MQTT_TypesAndValues all;
+   import from MQTT_Functions_SetUp all;
+   import from MQTT_Perf_Pixits all;
+   import from MQTT_Perf_TestSystem all;
+   import from MQTT_TestSystem_Common all;
+   import from MQTT_Perf_TestSystem all;
+   import from MQTT_Templates_CONNACK all;
+   import from MQTT_Templates_CONNECT all;
+   import from MQTT_Templates_MQTTasp all;
+   import from MQTT_Templates_PUBACK all;
+   import from MQTT_Templates_PUBCOMP all;
+   import from MQTT_Templates_PUBLISH all;
+   import from MQTT_Templates_PUBREC all;
+   import from MQTT_Templates_PUBREL all;
+   import from MQTT_Templates_SUBACK all;
+   import from MQTT_Templates_SUBSCRIBE all;
+   import from MQTT_Templates all;
+   import from MQTT_TestSystem_Common all;
+   import from MQTT_v3_1_1_Types all;
+   import from MQTT_v3_1_1_IPL4SizeFunction all;
+   import from MQTT_Client_Behaviors all;
+   import from IPL4asp_PortType all;
+   import from IPL4asp_Types all;
+   import from Perf_TestScheduler all;
+   import from Random_Helper all;
+   import from MQTTasp_PortType all;
+   import from MQTT_v3_1_1_Types all;
+   import from MQTTasp_Types all;
+   import from TCCDateTime_Functions all;
+   
+/*
+* This group contains commonly used utility functions
+*/
+group Common_FunctionsGroup {
+  function f_sleep(in float p_time)
+  {
+    timer T_busywait := p_time;
+    T_busywait.start;
+    T_busywait.timeout;
+  }
+
+  // this function is taken from the example given in https://www.eclipse.org/forums/index.php/t/1085007/
+  function f_isRunningGuard(in MQTT_Client p_comp, in float p_timeout := 10.0)
+  {
+    timer T_wait;
+    if(p_comp.running)
+    {
+      T_wait.start(p_timeout);
+      log("runningGuard "
+        & ": waiting for function to stop executing on component "
+        & log2str(p_comp) & ", timeout in "
+        & log2str(p_timeout) & " seconds.");
+      alt
+      {
+        [] p_comp.done
+        {
+          log("runningGuard "
+            & ": component " & log2str(p_comp)
+            & " returned done properly after waiting for "
+            & log2str(T_wait.read) & " seconds.");
+        }
+        [] T_wait.timeout
+        {
+          log("runningGuard "
+            & ": Stopping function running on component " & log2str(p_comp)
+            & " due to timeout.");
+          p_comp.stop;
+        }
+        [else]
+        {
+          // busy loop to ensure no default altsteps are executed and
+          // unexpectedly ends our alt-statement by not calling 'repeat'
+          // correctly.
+          // v_dummy exists only to avoid busy-loop warning during compilation
+          var integer v_dummy;
+          repeat;
+        }
+      }
+    }
+  }
+  function f_mqtt_receive_publish_timed(template MQTT_v3_1_1_Publish p_publish) runs on MQTT_Client_MTC return ReturnFloat
+   {
+     var template MQTTasp_Message v_expect := mw_mqtt_message({msg := { publish := p_publish }})
+     var MQTTasp_Message v_received
+     timer t_timeout := PX_MAX_RESPONSE_TIME;
+     var integer curr_time :=  f_time_ms();
+     t_timeout.start
+     var ReturnFloat duration;
+     alt {
+       [] MQTT_PCO.receive(v_expect) {
+        // setverdict(pass, "Received PUBLISH timer ", t_timeout.read)
+         duration:=t_timeout.read;
+         break;
+       }
+       [] MQTT_PCO.receive(MQTTasp_Message:?) -> value v_received {
+         setverdict(fail, "Received unexpected message ", v_received)
+         duration:=t_timeout.read;
+         break;
+       }
+       [false] t_timeout.timeout {
+         setverdict(fail, "No PUBLISH received timer ", t_timeout.read)
+         duration:=t_timeout.read;
+         break;
+       }
+     }
+     t_timeout.stop
+     return duration*1000.0+int2float(curr_time);
+   }
+   
+}
+}

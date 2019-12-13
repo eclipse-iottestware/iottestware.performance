@@ -1,0 +1,62 @@
+/*******************************************************************************
+ * Copyright (c) 2019 Fraunhofer FOKUS
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the Eclipse Public License v1.0
+ * which accompanies this distribution, and is available at
+ * http://www.eclipse.org/legal/epl-v10.html
+ *
+ * Contributors:
+ *   Alexander Kaiser
+ *   Sascha Kretzschmann
+ *	 Ilie Daniel Gheorghe Pop
+ *******************************************************************************/
+module MQTT_Perf_Pixits {
+
+    import from MQTT_TypesAndValues all;
+    
+    /*
+     * @desc defines the number of operations per second are executed towards the SUT
+     */
+    modulepar float PX_RATE := 5.0;
+
+    /*
+    * @desc total number of requests to be executed
+    */
+    modulepar integer PX_NUM_REQUESTS := 100;
+
+	 /*
+     * @desc the hostname / ip address of the SUT
+     */
+    modulepar charstring PX_SUT_HOSTNAME := "127.0.0.1";
+
+    /*
+     * @desc the port of the SUT
+     */
+    modulepar integer PX_SUT_PORT := 1883;
+
+ 	 /*
+     * @desc a list of client credentials which the TS will use for communication with the SUT
+     */
+    modulepar MqttClientCredentials_List PX_CLIENTS;
+    
+       /*
+     * @desc the topic which will be used for publishing
+     */
+    modulepar charstring PX_TOPIC_NAME := "eclipse/iot/testware/"
+    
+    /*
+     * @desc how often should the TS try to reconnect if connection fails.
+     */
+    modulepar integer PX_CONNECT_RETRIES := 1;
+
+    /*
+     * @desc how long should the TS wait between the reconnects
+     */
+    modulepar float PX_RETRY_DELAY := 1.0;
+    
+    /*
+     * @desc defines the time in seconds how long the TS will wait for responses from the SUT
+     */
+    modulepar float PX_MAX_RESPONSE_TIME := 5.0;
+    modulepar float PX_MAX_DELAY_THRESHOLD := 5.0;
+}
