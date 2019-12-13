@@ -36,18 +36,16 @@ module MQTT_Perf_Functions {
    import from MQTT_TestSystem_Common all;
    import from MQTT_v3_1_1_Types all;
    import from MQTT_v3_1_1_IPL4SizeFunction all;
-	import from MQTT_Client_Behaviors all;
-	import from IPL4asp_PortType all;
-	import from IPL4asp_Types all;
-import from Perf_TestScheduler all;
-	import from Random_Helper all;
-	import from MQTTasp_PortType all;
-	import from MQTT_v3_1_1_Types all;
+   import from MQTT_Client_Behaviors all;
+   import from IPL4asp_PortType all;
+   import from IPL4asp_Types all;
+   import from Perf_TestScheduler all;
+   import from Random_Helper all;
+   import from MQTTasp_PortType all;
+   import from MQTT_v3_1_1_Types all;
    import from MQTTasp_Types all;
    import from TCCDateTime_Functions all;
    
-   
-
 /*
 * This group contains commonly used utility functions
 */
@@ -103,10 +101,7 @@ group Common_FunctionsGroup {
      var template MQTTasp_Message v_expect := mw_mqtt_message({msg := { publish := p_publish }})
      var MQTTasp_Message v_received
      timer t_timeout := PX_MAX_RESPONSE_TIME;
-     
      var integer curr_time :=  f_time_ms();
-     
-          
      t_timeout.start
      var ReturnFloat duration;
      alt {
@@ -130,8 +125,5 @@ group Common_FunctionsGroup {
      return duration*1000.0+int2float(curr_time);
    }
    
-   
-  
 }
-
 }

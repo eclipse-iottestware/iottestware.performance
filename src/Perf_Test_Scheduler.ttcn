@@ -15,7 +15,6 @@ group executingFunctionsGroup
   type float ReturnFloat with  {extension "done"};
   function f_MQTT_RATE_EXECUTION() 
   {
-    
   }
 }
 

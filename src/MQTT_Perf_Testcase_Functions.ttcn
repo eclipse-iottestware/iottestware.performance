@@ -40,9 +40,7 @@ import from MQTT_Perf_Functions all;
 import from Random_Helper all;
 import from UTF8_Helper all;
 import from TCCDateTime_Functions all;
-
 import from MQTT_v3_1_1_Types all;
-
 
 group pingrespFunctionsGroup
 {
@@ -90,19 +88,15 @@ group pingrespFunctionsGroup
    	{
    	 if(ping_duration*1000.0<PX_MAX_RESPONSE_TIME)
        {
-    //    	setverdict(pass, "IUT answered correctly to PINGREQ with PINGRESP and duration " ,ping_duration*1000.0, "ms");
        log("ping sent within limit");
-       
        }
        else
        {
-    //   		setverdict(fail, "IUT answered correctly to PINGREQ with PINGRESP and duration " ,ping_duration*1000.0, "ms");
        log("ping limit brech");
        }
      }
     else
     {
-    //    setverdict(fail, "IUT answered incorrectly with ", v_response);
     log("ping reply incorrect");
     }
     return (ping_duration* 1000.0);
@@ -119,7 +113,6 @@ group pubsubFunctionsGroup{
     var integer v_pid_2 := f_random_packet_id()
     var UTF8EncodedString v_topic_name:= f_utf8_from_charstring(PX_TOPIC_NAME)
     var octetstring v_payload := 'A0A0'O;
-
     var template MQTT_v3_1_1_PublishHeader v_header_1 := t_publish_header(-, AT_LEAST_ONCE_DELIVERY, -)
     var template MQTT_v3_1_1_PublishHeader v_header_2 := t_publish_header(-, AT_LEAST_ONCE_DELIVERY, -)
     var template MQTT_v3_1_1_Publish v_publish_1 := t_publish_packet(valueof(v_header_1), v_pid_1, v_topic_name, v_payload)
@@ -139,7 +132,6 @@ group pubsubFunctionsGroup{
       [] MQTT_PCO.receive(v_expected_puback_1) {
         alt {
           [] MQTT_PCO.receive(v_expected_puback_2) {
-         //   setverdict(pass, "Received PUBACK messages in correct order")
             pub_duration:=t_timeout.read;
             break
           }
@@ -167,9 +159,6 @@ group pubsubFunctionsGroup{
   
    function f_TC_MQTT_PERF_BROKER_FEAT_PUBSUB_001(MQTT_Client_MTC p_publisher, MQTT_Client_MTC p_subscriber) runs on MQTT_Client_MTC system MQTT_Client_TestSystem return float
   {
-
-
-    
 	var float pubsub_duration:=0.0;
     var integer v_pid_1 := f_random_packet_id()
     var integer v_pid_2 := f_random_packet_id()
@@ -178,15 +167,9 @@ group pubsubFunctionsGroup{
     var template MQTT_v3_1_1_PublishHeader v_header_1 := t_publish_header(-, AT_MOST_ONCE_DELIVERY, -)
 	var UTF8EncodedString v_topic_name:= f_utf8_from_charstring(PX_TOPIC_NAME)
 	var template MQTT_v3_1_1_Publish v_publish_1 := t_publish_packet(valueof(v_header_1), v_pid_1, v_topic_name, v_pl_1)
-	
-	
 	{
 	timer t_timer1 := PX_MAX_RESPONSE_TIME;
-   
-   
-     t_timer1.start
-    
-    
+    t_timer1.start
     // start listening for published messages
     p_subscriber.start(f_mqtt_receive_publish_timed(mw_publish_all.msg.publish))    
     // send PACKET_ID_1
@@ -195,15 +178,10 @@ group pubsubFunctionsGroup{
 	var ReturnFloat my_var := 0.0;
 	p_subscriber.done(ReturnFloat :?) -> value my_var; 
 	pubsub_duration := my_var-int2float(crt_time)
-	
     p_publisher.done
   }
-  
   return pubsub_duration
-  
   }
-  
-  
 }
 
 group disconnectFunctionsGroup
@@ -937,58 +915,5 @@ group protocolFeaturesFunctionsGroup
   }
 } // protocolFeaturesFunctionsGroup
 
-  function f_TC_MQTT_PERF_BROKER_SEC_CVE_001(MQTT_Client_MTC p_attacker, MQTT_Client_MTC p_probe) runs on MQTT_Client_MTC system MQTT_Client_TestSystem
-  {
-    p_attacker.start(f_mqtt_connect_valid())
-    p_probe.start(f_mqtt_connect_valid())
-    all component.done;
 
-    p_probe.start(f_ipl4_probe(PX_PROBE_TIME))
-    p_attacker.start(f_send_malformed_subscribe_01())
-    all component.done
-  }
-
-  function f_TC_MQTT_PERF_BROKER_SEC_CVE_002(MQTT_Client_MTC p_attacker, MQTT_Client_MTC p_probe) runs on MQTT_Client_MTC system MQTT_Client_TestSystem
-  {
-    p_attacker.start(f_mqtt_connect_valid())
-    p_probe.start(f_mqtt_connect_valid())
-    all component.done;
-
-    p_probe.start(f_ipl4_probe(PX_PROBE_TIME))
-    p_attacker.start(f_send_malformed_publish_01())
-    all component.done
-  }
-
-  function f_TC_MQTT_PERF_BROKER_SEC_CVE_003(MQTT_Client_MTC p_attacker, MQTT_Client_MTC p_probe) runs on MQTT_Client_MTC system MQTT_Client_TestSystem
-  {
-    p_probe.start(f_mqtt_connect_valid())
-    p_attacker.start(f_mqtt_connect_valid())
-    all component.done;
-
-    p_probe.start(f_ipl4_probe(PX_PROBE_TIME))
-    p_attacker.start(f_send_subscribe_cve_2019_11779())
-    all component.done
-
-    all component.done
-  }
-
-  /*
-  * Note: still experimental and does not work yet for affected IUT
-  *
-  function f_TC_MQTT_PERF_BROKER_SEC_CVE_xxx(MQTT_Client_List p_attacker_list, MQTT_Client_MTC p_probe) runs on MQTT_Client_MTC system MQTT_Client_SecurityTestSystem
-  {
-    p_probe.start(f_mqtt_connect_valid())
-    all component.done;
-
-    p_probe.start(f_ipl4_probe(PX_PROBE_TIME))
-
-    var integer v_clients_len := lengthof(p_attacker_list)
-    for(var integer i := 0; i < v_clients_len; i := i + 1)
-    {
-      var MQTT_Client_MTC v_cc := p_attacker_list[i]
-      v_cc.start(f_malformed_connect_01(100, 65535))
-    }
-
-    all component.done
-  }*/
 } // MQTT_Testcase_Functions

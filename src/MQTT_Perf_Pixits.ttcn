@@ -58,4 +58,5 @@ module MQTT_Perf_Pixits {
      * @desc defines the time in seconds how long the TS will wait for responses from the SUT
      */
     modulepar float PX_MAX_RESPONSE_TIME := 5.0;
+    modulepar float PX_MAX_DELAY_THRESHOLD := 5.0;
 }
